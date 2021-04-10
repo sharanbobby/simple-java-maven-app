@@ -1,30 +1,70 @@
-pipeline {
-    agent {
-        docker {
-            image 'maven:3-alpine'
-            args '-v /root/.m2:/root/.m2'
-        }
-    }
+pipeline{
+  environment {
+    //scannerHome = tool 'SonarQubeScanner'
+    registry = "sharanbobby/jenkins-java-app"
+    registryCredential = 'b4f2e812-96a2-4285-b0b3-3e904d588e1f'
+    dockerImage = ''
+  }
+  agent any
     stages {
-        stage('Build') {
+        stage('clean') {
             steps {
-                sh 'mvn -B -DskipTests clean package'
+                bat 'mvn clean'
             }
         }
-        stage('Test') {
+        stage('build and test') {
             steps {
-                sh 'mvn test'
+                bat 'mvn package'
             }
-            post {
-                always {
-                    junit 'target/surefire-reports/*.xml'
+        }
+        stage('Building image') {
+            steps{
+                script {
+                  dockerImage = docker.build registry + ":$BUILD_NUMBER"
                 }
+             }
+          }
+          stage('Push Image') {
+              steps{
+                  script {
+                      docker.withRegistry( '', registryCredential ) {
+                        dockerImage.push()
+                      }
+                  }
+              }
             }
-        }
-        stage('Deliver') {
+         /*stage('Sonarqube') {
+ 
             steps {
-                sh './jenkins/scripts/deliver.sh'
-            }
+              script {
+                  withSonarQubeEnv('sonarqube') {
+                  bat "${scannerHome}/bin/sonar-scanner"
+                    }
+                  }
+               }
+          }
+      stage("SonarQube Quality Gate"){
+        steps {
+          script {
+               timeout(time: 5, unit: 'MINUTES') { 
+               def qualitygate = waitForQualityGate() 
+               if (qualitygate.status != 'OK') {
+               abortPipeline:true
+               error "Pipeline aborted due to quality gate failure: ${qualitygate.status}"
+                 }
+               else {
+               echo "Quality gate passed"
+                  }
+              }
+           }
+         }
+       }
+      
+      stage('Deploying into k8s'){
+        steps{
+          bat 'kubectl apply -f deployment.yml'
+          bat 'kubectl apply -f service.yml'
         }
-    }
+      } */
+  } 
 }
